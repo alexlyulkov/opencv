@@ -1156,8 +1156,8 @@ void TFImporter::parseExpandDims(tensorflow::GraphDef& net, const tensorflow::No
     // Get input shape
     std::vector<MatShape> inShape_, outShape_;
     int inpIdindex = layer_id.find(inpId.name)->second;
-
-    dstNet.getLayerShapes(netInputShapes, inpIdindex, inShape_, outShape_);
+    std::vector<MatType> netInputTypes(netInputShapes.size(), CV_32F);
+    dstNet.getLayerShapes(netInputShapes, netInputTypes, inpIdindex, inShape_, outShape_);
     MatShape inpShape = outShape_[0];
     std::vector<int> outShape = inpShape;
 
@@ -1833,7 +1833,8 @@ void TFImporter::parseMul(tensorflow::GraphDef& net, const tensorflow::NodeDef& 
             // Get input shape
             MatShape outShape;
             std::vector<MatShape> inpShapes, outShapes;
-            dstNet.getLayerShapes(netInputShapes, inpId, inpShapes, outShapes);
+            std::vector<MatType> netInputTypes(netInputShapes.size(), CV_32F);
+            dstNet.getLayerShapes(netInputShapes, netInputTypes, inpId, inpShapes, outShapes);
             CV_CheckGT(static_cast<int>(outShapes.size()), pin.blobIndex, "");
             outShape = outShapes[pin.blobIndex];
 
