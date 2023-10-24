@@ -152,7 +152,6 @@ struct DataLayer : public Layer
         outputs_arr.getMatVector(outputs);
         internals_arr.getMatVector(internals);
 
-
         for (int i = 0; i < inputsData.size(); ++i)
         {
             if (inputsData[i].type() == CV_32S || inputsData[i].type() == CV_64S) {

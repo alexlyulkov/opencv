@@ -95,52 +95,54 @@ public:
         CV_Assert(inputs.size() == 2 || inputs.size() == 3);
         Mat& input = inputs[0];
         Mat& indices = inputs[1];
-        Mat& output = outputs[0];
 
         if (input.type() == CV_32F && indices.type() == CV_32S)
-            run<float, int32_t>(input, indices, output);
+            run<float, int32_t>(input, indices, outputs);
         else if (input.type() == CV_32F && indices.type() == CV_64S)
-            run<float, int64_t>(input, indices, output);
+            run<float, int64_t>(input, indices, outputs);
         else if (input.type() == CV_16S && indices.type() == CV_32S)
-            run<int16_t, int32_t>(input, indices, output);
+            run<int16_t, int32_t>(input, indices, outputs);
         else if (input.type() == CV_16S && indices.type() == CV_64S)
-            run<int16_t, int64_t>(input, indices, output);
+            run<int16_t, int64_t>(input, indices, outputs);
     }
 
     template<typename T, typename INDEX_TYPE>
-    void run(cv::Mat& input, cv::Mat& indices, cv::Mat& output)
+    void run(cv::Mat& input, cv::Mat& indices, std::vector<cv::Mat>& outputs)
     {
         CV_Assert(input.total() == indices.total());
         CV_Assert(input.size[0] == 1);
         CV_Assert(input.isContinuous());
 
-        Mat& outBlob = output;
-        outBlob.setTo(0);
-        CV_Assert(input.size[1] == outBlob.size[1]);
-        int outPlaneTotal = outBlob.size[2] * outBlob.size[3];
-
-        for (int i_c = 0; i_c < input.size[1]; i_c++)
+        for(int i_n = 0; i_n < outputs.size(); i_n++)
         {
-            Mat outPlane = getPlane(outBlob, 0, i_c);
-            int wh_area = input.size[2] * input.size[3];
-            const T* inptr = input.ptr<T>(0, i_c);
-            const INDEX_TYPE* idxptr = indices.ptr<INDEX_TYPE>(0, i_c);
-            T* outptr = outPlane.ptr<T>();
+            Mat& outBlob = outputs[i_n];
+            outBlob.setTo(0);
+            CV_Assert(input.size[1] == outBlob.size[1]);
+            int outPlaneTotal = outBlob.size[2]*outBlob.size[3];
 
-            for (int i_wh = 0; i_wh < wh_area; i_wh++)
+            for (int i_c = 0; i_c < input.size[1]; i_c++)
             {
-                int index = idxptr[i_wh];
-                if (!(0 <= index && index < outPlaneTotal))
+                Mat outPlane = getPlane(outBlob, 0, i_c);
+                int wh_area = input.size[2]*input.size[3];
+                const T* inptr = input.ptr<T>(0, i_c);
+                const INDEX_TYPE* idxptr = indices.ptr<INDEX_TYPE>(0, i_c);
+                T* outptr = outPlane.ptr<T>();
+
+                for(int i_wh = 0; i_wh < wh_area; i_wh++)
                 {
-                    CV_LOG_ERROR(NULL, cv::format(
-                        "i_c=%d\ni_wh=%d\nindex=%d\nmaxval=%lf\noutPlaneTotal=%d\n",
-                        i_c, i_wh, index, inptr[i_wh], outPlaneTotal));
-                    CV_LOG_ERROR(NULL, "input.size=" << input.size);
-                    CV_LOG_ERROR(NULL, "indices.size=" << indices.size);
-                    CV_LOG_ERROR(NULL, "outBlob=" << outBlob.size);
-                    CV_Assert(0 <= index && index < outPlaneTotal);
+                    int index = idxptr[i_wh];
+                    if (!(0 <= index && index < outPlaneTotal))
+                    {
+                        CV_LOG_ERROR(NULL, cv::format(
+                            "i_n=%d\ni_c=%d\ni_wh=%d\nindex=%d\nmaxval=%lf\noutPlaneTotal=%d\n",
+                            i_n, i_c, i_wh, index, inptr[i_wh], outPlaneTotal));
+                        CV_LOG_ERROR(NULL, "input.size=" << input.size);
+                        CV_LOG_ERROR(NULL, "indices.size=" << indices.size);
+                        CV_LOG_ERROR(NULL, "outBlob=" << outBlob.size);
+                        CV_Assert(0 <= index && index < outPlaneTotal);
+                    }
+                    outptr[index] = inptr[i_wh];
                 }
-                outptr[index] = inptr[i_wh];
             }
         }
     }

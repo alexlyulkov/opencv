@@ -298,8 +298,7 @@ public:
                     LayerPin blobPin(ld.id, index);
                     if (index < outShapes.size() && inPlace)
                     {
-                        if (ld.inputBlobs[0]->total() != total(shapes[index]))
-                            CV_Assert(ld.inputBlobs[0]->total() == total(shapes[index]));
+                        CV_Assert(ld.inputBlobs[0]->total() == total(shapes[index]));
                         CV_CheckEQ(ld.inputBlobs[0]->type(), types[index], "blob can't be reused if it has different type");
                         ld.outputBlobs[index] = ld.inputBlobs[0]->reshape(1, shapes[index]);
                         reuse(ld.inputBlobsId[0], blobPin);
