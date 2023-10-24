@@ -189,11 +189,6 @@ void Net::Impl::setUpNet(const std::vector<LayerPin>& blobsToKeep_)
 
         clear();
 
-        if (hasDynamicShapes)
-        {
-            updateLayersShapes();
-        }
-
         this->blobsToKeep = blobsToKeep_;
 
         allocateLayers(blobsToKeep_);
@@ -568,16 +563,20 @@ void Net::Impl::allocateLayers(const std::vector<LayerPin>& blobsToKeep_)
     {
         Mat& inp = layers[0].outputBlobs[i];
         CV_Assert(inp.total());
-        int type = CV_32F;
-        if (preferableBackend == DNN_BACKEND_OPENCV &&
-            preferableTarget == DNN_TARGET_OPENCL_FP16)
+        int type = inp.type();
+        if (type != CV_32S && type != CV_64S)
         {
-            type = CV_16S;
-            if (layers[0].dtype == CV_32F)
-                layers[0].outputBlobs[i].create(inp.dims, inp.size, CV_16S);
-        }
-        if (netWasQuantized && inp.type() == CV_8S) {
-            type = CV_8S;
+            type = CV_32F;
+            if (preferableBackend == DNN_BACKEND_OPENCV &&
+                preferableTarget == DNN_TARGET_OPENCL_FP16)
+            {
+                type = CV_16S;
+                if (layers[0].dtype == CV_32F)
+                    layers[0].outputBlobs[i].create(inp.dims, inp.size, CV_16S);
+            }
+            if (netWasQuantized && inp.type() == CV_8S) {
+                type = CV_8S;
+            }
         }
         inputShapes.push_back(shape(inp));
         inputTypes.push_back(type);
@@ -1004,7 +1003,10 @@ void Net::Impl::forward(OutputArrayOfArrays outputBlobs, const String& outputNam
             std::vector<Mat>& outputvec = *(std::vector<Mat>*)outputBlobs.getObj();
             outputvec.resize(ld.outputBlobs.size());
             for (int i = 0; i < outputvec.size(); i++)
-                convertFp16(ld.outputBlobs[i], outputvec[i]);
+                if (ld.outputBlobs[i].depth() == CV_32S || ld.outputBlobs[i].depth() == CV_64S)
+                    outputvec[i] = ld.outputBlobs[i];
+                else
+                    convertFp16(ld.outputBlobs[i], outputvec[i]);
         }
         else
         {
@@ -1180,6 +1182,7 @@ void Net::Impl::getLayerShapesRecursively(int id, LayersShapesMap& inOutShapes)
     bool layerSupportInPlace = false;
     try
     {
+        l->updateMemoryShapes(layerShapes.in);
         layerSupportInPlace = l->getMemoryShapes(is, requiredOutputs, os, ints);
         l->getTypes(layerShapes.inTypes, os.size(), ints.size(), layerShapes.outTypes, layerShapes.internalTypes);
         CV_CheckEQ(layerShapes.out.size(), layerShapes.outTypes.size(), "Number of shapes and types should be equal");

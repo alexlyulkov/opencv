@@ -70,16 +70,23 @@ public:
         return false;
     }
 
+    virtual void getTypes(const std::vector<MatType>& inputs,
+        const int requiredOutputs,
+        const int requiredInternals,
+        std::vector<MatType>& outputs,
+        std::vector<MatType>& internals) const
+    {
+        CV_Assert(inputs.size() >= 2);
+        CV_Assert(inputs[0] == CV_32F || inputs[0] == CV_16S);
+        CV_Assert(inputs[1] == CV_64S || inputs[1] == CV_32S);
+        outputs.assign(1, inputs[0]);
+    }
+
+
     void forward(InputArrayOfArrays inputs_arr, OutputArrayOfArrays outputs_arr, OutputArrayOfArrays internals_arr) CV_OVERRIDE
     {
         CV_TRACE_FUNCTION();
         CV_TRACE_ARG_VALUE(name, "name", name.c_str());
-
-        if (inputs_arr.depth() == CV_16S)
-        {
-            forward_fallback(inputs_arr, outputs_arr, internals_arr);
-            return;
-        }
 
         std::vector<Mat> inputs, outputs;
         inputs_arr.getMatVector(inputs);
@@ -88,44 +95,56 @@ public:
         CV_Assert(inputs.size() == 2 || inputs.size() == 3);
         Mat& input = inputs[0];
         Mat& indices = inputs[1];
+        Mat& output = outputs[0];
 
+        if (input.type() == CV_32F && indices.type() == CV_32S)
+            run<float, int32_t>(input, indices, output);
+        else if (input.type() == CV_32F && indices.type() == CV_64S)
+            run<float, int64_t>(input, indices, output);
+        else if (input.type() == CV_16S && indices.type() == CV_32S)
+            run<int16_t, int32_t>(input, indices, output);
+        else if (input.type() == CV_16S && indices.type() == CV_64S)
+            run<int16_t, int64_t>(input, indices, output);
+    }
+
+    template<typename T, typename INDEX_TYPE>
+    void run(cv::Mat& input, cv::Mat& indices, cv::Mat& output)
+    {
         CV_Assert(input.total() == indices.total());
         CV_Assert(input.size[0] == 1);
         CV_Assert(input.isContinuous());
 
-        for(int i_n = 0; i_n < outputs.size(); i_n++)
+        Mat& outBlob = output;
+        outBlob.setTo(0);
+        CV_Assert(input.size[1] == outBlob.size[1]);
+        int outPlaneTotal = outBlob.size[2] * outBlob.size[3];
+
+        for (int i_c = 0; i_c < input.size[1]; i_c++)
         {
-            Mat& outBlob = outputs[i_n];
-            outBlob.setTo(0);
-            CV_Assert(input.size[1] == outBlob.size[1]);
-            int outPlaneTotal = outBlob.size[2]*outBlob.size[3];
+            Mat outPlane = getPlane(outBlob, 0, i_c);
+            int wh_area = input.size[2] * input.size[3];
+            const T* inptr = input.ptr<T>(0, i_c);
+            const INDEX_TYPE* idxptr = indices.ptr<INDEX_TYPE>(0, i_c);
+            T* outptr = outPlane.ptr<T>();
 
-            for (int i_c = 0; i_c < input.size[1]; i_c++)
+            for (int i_wh = 0; i_wh < wh_area; i_wh++)
             {
-                Mat outPlane = getPlane(outBlob, 0, i_c);
-                int wh_area = input.size[2]*input.size[3];
-                const float* inptr = input.ptr<float>(0, i_c);
-                const float* idxptr = indices.ptr<float>(0, i_c);
-                float* outptr = outPlane.ptr<float>();
-
-                for(int i_wh = 0; i_wh < wh_area; i_wh++)
+                int index = idxptr[i_wh];
+                if (!(0 <= index && index < outPlaneTotal))
                 {
-                    int index = idxptr[i_wh];
-                    if (!(0 <= index && index < outPlaneTotal))
-                    {
-                        CV_LOG_ERROR(NULL, cv::format(
-                            "i_n=%d\ni_c=%d\ni_wh=%d\nindex=%d\nmaxval=%lf\noutPlaneTotal=%d\n",
-                            i_n, i_c, i_wh, index, inptr[i_wh], outPlaneTotal));
-                        CV_LOG_ERROR(NULL, "input.size=" << input.size);
-                        CV_LOG_ERROR(NULL, "indices.size=" << indices.size);
-                        CV_LOG_ERROR(NULL, "outBlob=" << outBlob.size);
-                        CV_Assert(0 <= index && index < outPlaneTotal);
-                    }
-                    outptr[index] = inptr[i_wh];
+                    CV_LOG_ERROR(NULL, cv::format(
+                        "i_c=%d\ni_wh=%d\nindex=%d\nmaxval=%lf\noutPlaneTotal=%d\n",
+                        i_c, i_wh, index, inptr[i_wh], outPlaneTotal));
+                    CV_LOG_ERROR(NULL, "input.size=" << input.size);
+                    CV_LOG_ERROR(NULL, "indices.size=" << indices.size);
+                    CV_LOG_ERROR(NULL, "outBlob=" << outBlob.size);
+                    CV_Assert(0 <= index && index < outPlaneTotal);
                 }
+                outptr[index] = inptr[i_wh];
             }
         }
     }
+
 
 #ifdef HAVE_CUDA
     Ptr<BackendNode> initCUDA(
