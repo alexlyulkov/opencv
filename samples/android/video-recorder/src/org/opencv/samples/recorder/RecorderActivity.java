@@ -218,7 +218,7 @@ public class RecorderActivity extends CameraActivity implements CvCameraViewList
                     break;
                 }
                 mStatus = STATUS_PLAYING;
-                mStatusTextView.setText("Status: Playing video");
+                //mStatusTextView.setText("Status: Playing video");
                 mTriggerButton.setText("Stop playback");
                 break;
             case STATUS_PLAYING:
@@ -301,6 +301,13 @@ public class RecorderActivity extends CameraActivity implements CvCameraViewList
         }
 
         Toast.makeText(this, "Starting playback from file " + mVideoFilename, Toast.LENGTH_SHORT).show();
+
+        String text = "";
+        text += "\nFPS: " + mVideoCapture.get(Videoio.CAP_PROP_FPS);
+        text += "\nFRAME_WIDTH: " + mVideoCapture.get(Videoio.CAP_PROP_FRAME_WIDTH);
+        text += "\nFRAME_HEIGHT: " + mVideoCapture.get(Videoio.CAP_PROP_FRAME_HEIGHT);
+        text += "\nFRAME_COUNT: " + mVideoCapture.get(Videoio.CAP_PROP_FRAME_COUNT);
+        mStatusTextView.setText(text);
 
         mPlayerThread = new Runnable() {
             @Override
