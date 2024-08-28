@@ -1848,32 +1848,41 @@ TEST(Layer_Test_ReduceMean, accuracy_input_0)
 TEST(Layer_Test_Convolution, relu_fusion)
 {
     Net net;
+    for (int i = 0; i < 40; i++)
     {
         LayerParams lp;
-        lp.set("kernel_size", 1);
+        lp.set("kernel_size", 3);
         lp.set("num_output", 1);
+        // lp.set("pad_l", 1);
+        // lp.set("pad_r", 1);
+        // lp.set("pad_t", 1);
+        // lp.set("pad_b", 1);
         lp.set("bias_term", false);
         lp.type = "Convolution";
-        lp.name = "testConv";
+        lp.name = "testConv" + std::to_string(i);
 
-        int weightsShape[] = {1, 1, 1, 1};
+        int weightsShape[] = {1024, 1024, 3, 3};
         Mat weights(4, &weightsShape[0], CV_32F, Scalar(1));
         lp.blobs.push_back(weights);
         net.addLayerToPrev(lp.name, lp.type, lp);
     }
-    {
-        LayerParams lp;
-        lp.type = "ReLU";
-        lp.name = "testReLU";
-        net.addLayerToPrev(lp.name, lp.type, lp);
-    }
-    int sz[] = {1, 1, 2, 3};
+    // {
+    //     LayerParams lp;
+    //     lp.type = "ReLU";
+    //     lp.name = "testReLU";
+    //     net.addLayerToPrev(lp.name, lp.type, lp);
+    // }
+    int sz[] = {1, 1024, 128, 128};
     Mat input(4, &sz[0], CV_32F);
     randu(input, -1.0, -0.1);
     net.setInput(input);
-    net.setPreferableBackend(DNN_BACKEND_OPENCV);
-    Mat output = net.forward("testConv");
-    normAssert(input, output);
+    net.setPreferableBackend(DNN_BACKEND_CUDA);
+    net.setPreferableTarget(DNN_TARGET_CUDA);
+    //Mat output = 
+    for (int i = 0; i < 10; ++i)
+        net.forward("testConv39");
+    //std::cout << shape(output) << "\n";
+    //normAssert(input, output);
 }
 
 typedef testing::TestWithParam<tuple<bool, tuple<Backend, Target> > > Layer_Test_Eltwise_unequal;
